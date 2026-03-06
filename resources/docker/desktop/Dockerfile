@@ -61,9 +61,18 @@ RUN npx playwright install --with-deps chromium firefox \
     && chmod -R o+rx /opt/pw-browsers \
     && rm -rf /tmp/npx* /tmp/npm*
 
-# Create wrapper scripts that locate the actual binaries
+# Create wrapper scripts that locate the actual binaries.
+# Chromium flags:
+#   --no-sandbox       required in containers (no user namespaces)
+#   --test-type        suppresses the "unsupported flag" infobar
+#   --disable-gpu      no GPU in virtual framebuffer
+#   --disable-dev-shm-usage  use /tmp instead of /dev/shm (small in containers)
+#   --no-first-run     skip first-run wizard / welcome page
+#   --no-default-browser-check  skip default browser prompt
+#   --disable-session-crashed-bubble  suppress "restore pages" bar
+#   --disable-infobars suppress remaining infobars
 RUN CHROME_BIN="$(find /opt/pw-browsers -path '*/chrome-linux/chrome' -o -path '*/chrome-linux64/chrome' | head -1)" \
-    && printf '#!/bin/sh\nexec "%s" --no-sandbox --disable-gpu --disable-dev-shm-usage "$@"\n' "$CHROME_BIN" > /usr/local/bin/chromium \
+    && printf '#!/bin/sh\nexec "%s" --no-sandbox --test-type --disable-gpu --disable-dev-shm-usage --no-first-run --no-default-browser-check --disable-session-crashed-bubble --disable-infobars "$@"\n' "$CHROME_BIN" > /usr/local/bin/chromium \
     && chmod +x /usr/local/bin/chromium \
     && FF_BIN="$(find /opt/pw-browsers -path '*/firefox/firefox' -type f | head -1)" \
     && printf '#!/bin/sh\nexec "%s" "$@"\n' "$FF_BIN" > /usr/local/bin/firefox-pw \

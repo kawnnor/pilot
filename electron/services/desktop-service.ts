@@ -879,13 +879,46 @@ export class DesktopService {
       { t: DESKTOP_IMAGE },
     );
 
-    // Wait for build to complete
+    // Wait for build to complete. followProgress doesn't always surface
+    // build failures via the error callback — some Docker API versions
+    // report errors only inside the stream messages. Collect all messages
+    // and check for an `error` field on the final message.
     await new Promise<void>((resolve, reject) => {
-      this.docker.modem.followProgress(stream, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+      this.docker.modem.followProgress(
+        stream,
+        (err, messages) => {
+          if (err) {
+            reject(new Error(`Desktop image build failed: ${err.message}`));
+            return;
+          }
+          // Check stream messages for build errors that followProgress missed
+          const lastMsg = messages?.[messages.length - 1];
+          if (lastMsg?.error) {
+            reject(new Error(`Desktop image build failed: ${lastMsg.error}`));
+            return;
+          }
+          // Also scan for errorDetail anywhere in the output
+          const errorMsg = messages?.find((m: Record<string, unknown>) => m.error || m.errorDetail);
+          if (errorMsg) {
+            const detail = errorMsg.error || (errorMsg.errorDetail as Record<string, string>)?.message || 'unknown error';
+            reject(new Error(`Desktop image build failed: ${detail}`));
+            return;
+          }
+          resolve();
+        },
+      );
     });
+
+    // Verify the image actually exists after build — belt-and-suspenders
+    // guard against silent build failures not caught by stream inspection.
+    try {
+      await this.docker.getImage(DESKTOP_IMAGE).inspect();
+    } catch {
+      throw new Error(
+        `Desktop image build completed but '${DESKTOP_IMAGE}' was not found. `
+        + 'Check Docker build output for errors.',
+      );
+    }
   }
 
   /**
@@ -933,11 +966,38 @@ export class DesktopService {
     );
 
     await new Promise<void>((resolve, reject) => {
-      this.docker.modem.followProgress(stream, (err) => {
-        if (err) reject(new Error(`Project desktop image build failed: ${err.message}`));
-        else resolve();
-      });
+      this.docker.modem.followProgress(
+        stream,
+        (err, messages) => {
+          if (err) {
+            reject(new Error(`Project desktop image build failed: ${err.message}`));
+            return;
+          }
+          const lastMsg = messages?.[messages.length - 1];
+          if (lastMsg?.error) {
+            reject(new Error(`Project desktop image build failed: ${lastMsg.error}`));
+            return;
+          }
+          const errorMsg = messages?.find((m: Record<string, unknown>) => m.error || m.errorDetail);
+          if (errorMsg) {
+            const detail = errorMsg.error || (errorMsg.errorDetail as Record<string, string>)?.message || 'unknown error';
+            reject(new Error(`Project desktop image build failed: ${detail}`));
+            return;
+          }
+          resolve();
+        },
+      );
     });
+
+    // Verify the project image exists after build
+    try {
+      await this.docker.getImage(projectImage).inspect();
+    } catch {
+      throw new Error(
+        `Project desktop image build completed but '${projectImage}' was not found. `
+        + 'Check Docker build output for errors.',
+      );
+    }
 
     return projectImage;
   }

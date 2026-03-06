@@ -70,7 +70,12 @@ COPY pilot-vnc.html /usr/share/novnc/pilot-vnc.html
 EXPOSE 5900 6080
 
 # ── Non-root user ────────────────────────────────────────────────────
-RUN groupadd -g 1000 pilot && useradd -u 1000 -g 1000 -ms /bin/bash pilot
+# Ubuntu 24.04 ships with a 'ubuntu' user/group at UID/GID 1000.
+# Remove it first, then create our 'pilot' user at the same IDs.
+RUN (userdel -r ubuntu 2>/dev/null || true) \
+    && (groupdel ubuntu 2>/dev/null || true) \
+    && groupadd -g 1000 pilot \
+    && useradd -u 1000 -g 1000 -ms /bin/bash pilot
 
 # Directory for secrets injected via putArchive before container start.
 # Owned by pilot so the entrypoint can read and delete the password file.

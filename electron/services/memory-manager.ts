@@ -320,31 +320,86 @@ If nothing worth remembering, respond: {"memories": []}`;
 
   /**
    * Remove a memory by fuzzy matching its text.
+   * Returns the removed text if found, null otherwise.
+   * Uses getMemoryFiles() for the initial search to stay in sync with
+   * the canonical file list, but re-reads the target file immediately
+   * before writing to avoid TOCTOU data loss from concurrent writes.
    */
-  async removeMemory(text: string, projectPath: string): Promise<boolean> {
-    const files = [
-      GLOBAL_MEMORY_PATH,
-      path.join(projectPath, '.pilot', 'MEMORY.md'),
+  async removeMemory(text: string, projectPath: string): Promise<string | null> {
+    const memoryFiles = await this.getMemoryFiles(projectPath);
+    const scopes: Array<{ content: string | null; scope: 'global' | 'project' }> = [
+      { content: memoryFiles.global, scope: 'global' },
+      { content: memoryFiles.projectShared, scope: 'project' },
     ];
 
-    for (const filePath of files) {
-      try {
-        let content = await fs.readFile(filePath, 'utf-8');
-        const lines = content.split('\n');
-        const matchIdx = lines.findIndex(line =>
-          line.toLowerCase().includes(text.toLowerCase()) && line.startsWith('- ')
-        );
-        if (matchIdx !== -1) {
-          lines.splice(matchIdx, 1);
-          await fs.writeFile(filePath, lines.join('\n'), 'utf-8');
-          return true;
-        }
-      } catch {
-        /* Expected: memory file may not exist during remove */
-        continue;
+    for (const { content, scope } of scopes) {
+      if (!content) continue;
+
+      // Check if this file contains a match
+      const hasMatch = content.split('\n').some(line =>
+        line.toLowerCase().includes(text.toLowerCase()) && line.startsWith('- ')
+      );
+      if (!hasMatch) continue;
+
+      // Re-read the file immediately before writing to minimise the
+      // TOCTOU window — any concurrent appendMemory/saveMemoryFile
+      // writes are preserved.
+      const filePath = this.resolveFilePath(scope, projectPath);
+      const freshContent = await this.loadFile(filePath);
+      if (!freshContent) continue; // file deleted between snapshot and re-read
+      const lines = freshContent.split('\n');
+      const matchIdx = lines.findIndex(line =>
+        line.toLowerCase().includes(text.toLowerCase()) && line.startsWith('- ')
+      );
+      if (matchIdx !== -1) {
+        const removedLine = lines[matchIdx].replace(/^-\s*/, ''); // Strip bullet prefix
+        lines.splice(matchIdx, 1);
+        await fs.writeFile(filePath, lines.join('\n'), 'utf-8');
+        return removedLine;
       }
     }
-    return false;
+    return null;
+  }
+
+  /**
+   * Search memories by keyword/phrase.
+   * Returns matching entries with scope and category context.
+   */
+  async searchMemories(
+    query: string,
+    projectPath: string,
+    scope?: 'all' | 'global' | 'project'
+  ): Promise<Array<{ text: string; scope: 'global' | 'project'; category: string }>> {
+    const files = await this.getMemoryFiles(projectPath);
+    const results: Array<{ text: string; scope: 'global' | 'project'; category: string }> = [];
+    const queryLower = query.toLowerCase();
+
+    const searchFile = (content: string | null, fileScope: 'global' | 'project') => {
+      if (!content) return;
+
+      const lines = content.split('\n');
+      let currentCategory = 'General';
+
+      for (const line of lines) {
+        if (line.startsWith('## ')) {
+          currentCategory = line.replace(/^##\s*/, '');
+        } else if (line.startsWith('- ')) {
+          const text = line.replace(/^-\s*/, '');
+          if (text.toLowerCase().includes(queryLower)) {
+            results.push({ text, scope: fileScope, category: currentCategory });
+          }
+        }
+      }
+    };
+
+    if (!scope || scope === 'all' || scope === 'global') {
+      searchFile(files.global, 'global');
+    }
+    if (!scope || scope === 'all' || scope === 'project') {
+      searchFile(files.projectShared, 'project');
+    }
+
+    return results;
   }
 
   /**

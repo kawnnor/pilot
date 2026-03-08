@@ -78,6 +78,7 @@ export const IPC = {
   SHELL_DETECT_EDITORS: 'shell:detect-editors',
   SHELL_DETECT_TERMINALS: 'shell:detect-terminals',
   SHELL_OPEN_IN_EDITOR: 'shell:open-in-editor',
+  SHELL_CONFIRM_DIALOG: 'shell:confirm-dialog',
 
   // Tabs
   TABS_SAVE_STATE: 'tabs:save-state',
@@ -123,6 +124,13 @@ export const IPC = {
   GIT_INTERACTIVE_REBASE_PREPARE: 'git:interactive-rebase-prepare', // get todo list for a range
   GIT_INTERACTIVE_REBASE_EXECUTE: 'git:interactive-rebase-execute', // run the interactive rebase
   GIT_STATUS_CHANGED: 'git:status-changed',                       // main → renderer push
+
+  // Git submodules
+  GIT_SUBMODULE_LIST: 'git:submodule-list',
+  GIT_SUBMODULE_INIT: 'git:submodule-init',
+  GIT_SUBMODULE_DEINIT: 'git:submodule-deinit',
+  GIT_SUBMODULE_UPDATE: 'git:submodule-update',
+  GIT_SUBMODULE_SYNC: 'git:submodule-sync',
 
   // Dev commands
   DEV_LOAD_CONFIG: 'dev:load-config',

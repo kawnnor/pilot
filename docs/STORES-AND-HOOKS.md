@@ -25,7 +25,7 @@ The renderer uses Zustand for state management with one store per domain, and Re
 | `useCommandPaletteStore` | `command-palette-store.ts` | isOpen, commands, recentCommandIds | None |
 | `useDevCommandStore` | `dev-command-store.ts` | commands, states, tunnelUrls | Dev Commands |
 | `useExtensionStore` | `extension-store.ts` | extensions, skills | Extensions |
-| `useGitStore` | `git-store.ts` | status, branches, commitLog, stashes | Git |
+| `useGitStore` | `git-store.ts` | status, branches, commitLog, stashes, submodules | Git |
 | `useMemoryStore` | `memory-store.ts` | globalMemory, projectMemory | Memory |
 | `useOutputWindowStore` | `output-window-store.ts` | windows, draggedTab | None |
 | `useProjectStore` | `project-store.ts` | projectPath, fileTree, selectedFilePath | Project |
@@ -335,6 +335,9 @@ interface GitStore {
   isLoading: boolean;
   error: string | null;
   currentProjectPath: string | null;
+  // Submodule state
+  submodules: GitSubmodule[];
+  isSubmoduleLoading: boolean;
 }
 ```
 
@@ -357,6 +360,11 @@ interface GitStore {
 - `applyStash(stashId)` — Apply a stash
 - `clearBlame()` — Clear blame data
 - `clearDiff()` — Clear diff content
+- `loadSubmodules()` — Fetch all submodules for the current project
+- `initSubmodule(subPath?)` — Initialize one or all submodules
+- `deinitSubmodule(subPath, force?)` — Deinitialize a submodule
+- `updateSubmodule(subPath?, options?)` — Update submodule(s) to recorded commit
+- `syncSubmodule(subPath?)` — Sync submodule remote URLs from `.gitmodules`
 - `reset()` — Reset store to initial state
 
 **IPC Channels:**
@@ -376,6 +384,11 @@ interface GitStore {
 - `IPC.GIT_STASH_LIST` — Get stashes
 - `IPC.GIT_STASH_APPLY` — Apply stash
 - `IPC.GIT_DIFF` — Get diff
+- `IPC.GIT_SUBMODULE_LIST` — List submodules
+- `IPC.GIT_SUBMODULE_INIT` — Initialize submodule(s)
+- `IPC.GIT_SUBMODULE_DEINIT` — Deinitialize a submodule
+- `IPC.GIT_SUBMODULE_UPDATE` — Update submodule(s)
+- `IPC.GIT_SUBMODULE_SYNC` — Sync submodule URLs
 
 **Notes:**
 - `initGit()` must be called before any other actions

@@ -1,6 +1,6 @@
 # Development Guide
 
-> Last updated: 2026-02-24
+> Last updated: 2026-03-10
 
 How to set up, run, and extend Pilot locally.
 
@@ -155,4 +155,5 @@ Before submitting a change:
 
 ## Changes Log
 
+- 2026-03-10: Updated date; no structural changes needed
 - 2026-02-24: Initial documentation generated

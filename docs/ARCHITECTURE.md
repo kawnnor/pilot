@@ -1,6 +1,6 @@
 # Architecture
 
-> Last updated: 2026-03-06
+> Last updated: 2026-03-10
 
 Pilot is an Electron desktop app with strict three-process isolation. The **main process** owns all business logic; the **renderer** is a pure React app with no Node.js access; a **preload script** bridges them. All inter-process calls use typed IPC channels. The same renderer code also runs in a remote browser via a WebSocket-based companion mode.
 
@@ -26,6 +26,8 @@ Pilot is an Electron desktop app with strict three-process isolation. The **main
 | `WorkspaceStateService` | `electron/services/workspace-state.ts` | Tab layout save/restore to `workspace.json` |
 | `TaskManager` | `electron/services/task-manager.ts` | Task board CRUD via the pi task system |
 | `SubagentManager` | `electron/services/subagent-manager.ts` | Parallel subagent pool; routes results back to the parent session |
+| `SessionToolInjector` | `electron/services/session-tool-injector.ts` | Isolates private SDK field access for runtime tool injection/ejection on live sessions |
+| `TaskReviewService` | `electron/services/task-review-service.ts` | Runs `td approve`/`td reject` in subprocess for tasks in review status |
 | `CompanionServer` | `electron/services/companion-server.ts` | HTTPS + WSS server for remote browser access |
 | `CompanionAuth` | `electron/services/companion-auth.ts` | PIN/QR pairing, JWT-like session token generation |
 | `CompanionDiscovery` | `electron/services/companion-discovery.ts` | mDNS advertisement for local network discovery |
@@ -190,9 +192,9 @@ Companion browser loads companion UI bundle
 
 ### Agent Tool Registration
 
-- **What**: Agent tools are registered per-session during session creation. Custom tools (memory, desktop, editor, MCP) are added alongside SDK built-in tools.
-- **Where**: `pi-session-config.ts` (assembly), `memory-tools.ts`, `desktop-tools.ts`, `editor-tools.ts`, `mcp-tool-bridge.ts` (tool definitions).
-- **Why it matters**: Tools define what the agent can do. Adding a new tool means creating a `ToolDefinition` and registering it in session config.
+- **What**: Agent tools are registered per-session during session creation. Custom tools (memory, desktop, editor, MCP) are added alongside SDK built-in tools. Runtime tool injection/ejection (e.g., desktop tools toggled mid-session) is handled by `SessionToolInjector`.
+- **Where**: `pi-session-config.ts` (assembly), `session-tool-injector.ts` (runtime add/remove), `memory-tools.ts`, `desktop-tools.ts`, `editor-tools.ts`, `mcp-tool-bridge.ts` (tool definitions).
+- **Why it matters**: Tools define what the agent can do. Adding a new tool means creating a `ToolDefinition` and registering it in session config. Runtime changes go through `SessionToolInjector` which safely mutates SDK internals with validation guards.
 
 ### Service Injection Pattern
 
@@ -242,8 +244,10 @@ Companion browser loads companion UI bundle
 - **Agent tools are registered per-session**: Each session gets its own tool set based on project context (MCP servers, desktop availability, etc.).
 - **MCP servers are reference-counted**: Multiple tabs sharing a project share a single MCP connection with reference counting for cleanup.
 - **Desktop containers are project-scoped**: One Docker container per project, shared across all tabs in that project.
+- **Private SDK access is isolated**: Runtime tool injection requires accessing private `_customTools` and `_refreshToolRegistry()` on the SDK's `AgentSession`. This is confined to `SessionToolInjector` with runtime guards that detect SDK changes and produce actionable errors.
 
 ## Changes Log
 
+- 2026-03-10: Added SessionToolInjector, TaskReviewService; documented runtime tool injection pattern
 - 2026-03-06: Added Desktop, MCP, editor tools, memory tools, git conflict/rebase flows, agent tool registration pattern
 - 2026-02-24: Initial documentation generated

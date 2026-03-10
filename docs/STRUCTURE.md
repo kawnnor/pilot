@@ -1,6 +1,6 @@
 # Project Structure
 
-> Last updated: 2026-03-06
+> Last updated: 2026-03-10
 
 Pilot is split into three top-level source areas: `electron/` (main process, Node.js), `src/` (renderer, React), and `shared/` (types + IPC constants used by both). Configuration and documentation live in root-level directories.
 
@@ -64,7 +64,9 @@ pilot/
 │   │   ├── pilot-paths.ts             # Cross-platform path utilities
 │   │   ├── logger.ts                  # Structured logger (file + syslog transport)
 │   │   ├── session-metadata.ts        # Session pin/archive metadata persistence
+│   │   ├── session-tool-injector.ts    # Encapsulates private SDK access for runtime tool add/remove
 │   │   ├── task-manager.ts            # Task board CRUD backed by pi task system
+│   │   ├── task-review-service.ts       # Runs td approve/reject in a subprocess for tasks in review
 │   │   ├── task-tools.ts              # Agent task tools
 │   │   ├── task-helpers.ts            # Task utility functions
 │   │   ├── task-types.ts              # Task type definitions
@@ -106,7 +108,7 @@ pilot/
 │   │   ├── sandbox/                   # Diff review UI (Monaco side-by-side)
 │   │   ├── terminal/                  # Terminal UI (xterm.js)
 │   │   ├── settings/                  # Settings modal (all tabs)
-│   │   ├── git/                       # Git status, commit, branch, log, rebase, conflicts
+│   │   ├── git/                       # Git status, commit, branch, log, rebase, conflicts, submodules
 │   │   ├── tab-bar/                   # Tab bar at top of window
 │   │   ├── status-bar/                # Bottom status bar
 │   │   ├── editor/                    # File editor (Monaco)
@@ -198,6 +200,7 @@ pilot/
 | `electron/services/mcp-manager.ts` | MCP server connections, tool discovery, lifecycle |
 | `electron/services/memory-tools.ts` | Agent memory tools (read, write, search, delete) |
 | `electron/services/editor-tools.ts` | Agent GUI tools (show file, open URL, web tab) |
+| `electron/services/session-tool-injector.ts` | Isolates private SDK field access for runtime tool injection (add/remove tools on live sessions) |
 | `shared/ipc.ts` | ALL IPC channel name constants — never use raw strings |
 | `shared/types.ts` | ALL types crossing the IPC boundary — the contract |
 | `src/app.tsx` | React root; mounts stores, hooks, keyboard shortcuts, and layout |
@@ -216,5 +219,6 @@ pilot/
 
 ## Changes Log
 
+- 2026-03-10: Added SessionToolInjector, TaskReviewService; updated git for submodule support
 - 2026-03-06: Added Desktop, MCP, editor tools, memory tools, web tabs, git rebase/conflicts, theme, new hooks, attachment IPC
 - 2026-02-24: Initial documentation generated

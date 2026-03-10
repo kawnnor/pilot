@@ -1,6 +1,6 @@
 # Data Model
 
-> Last updated: 2026-03-06
+> Last updated: 2026-03-10
 
 Pilot has no database. Persistent state is stored in JSON files and Markdown files on disk. The key types are defined in `shared/types.ts` (IPC-crossing types) and within individual service files. All IPC payloads must be Structured Clone serializable.
 
@@ -149,6 +149,23 @@ Pilot has no database. Persistent state is stored in JSON files and Markdown fil
 | `type` | `'merge' \| 'rebase' \| 'cherry-pick' \| 'revert' \| null` | Current operation type |
 | `step` | `number \| undefined` | Current step (rebase) |
 | `totalSteps` | `number \| undefined` | Total steps (rebase) |
+
+### `GitSubmodule`
+
+- **Location**: `shared/types.ts`
+- **Purpose**: Represents a git submodule registered in `.gitmodules` with its current status.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Submodule name (from `.gitmodules`) |
+| `path` | `string` | Relative path within the parent repo |
+| `url` | `string` | Remote URL |
+| `branch` | `string \| null` | Branch tracked by the submodule (if configured) |
+| `expectedCommit` | `string` | Commit hash the parent repo expects |
+| `currentCommit` | `string \| null` | Actual commit hash (null if uninitialized) |
+| `status` | `SubmoduleStatusCode` | `'initialized' \| 'uninitialized' \| 'modified' \| 'conflict'` |
+| `dirty` | `boolean` | Whether the submodule working tree has uncommitted changes |
+| `statusLabel` | `string` | Human-readable status for the UI |
 
 ## Desktop Types
 
@@ -314,6 +331,17 @@ Pilot has no database. Persistent state is stored in JSON files and Markdown fil
 | `dependencies` | `TaskDependency[]` | Blocking task references |
 | `epic` | `string \| undefined` | Parent epic ID |
 
+### `TaskReviewResult`
+
+- **Location**: `shared/types.ts`
+- **Purpose**: Result of a task review operation (approve or reject via td CLI).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | `boolean` | Whether the operation succeeded |
+| `message` | `string` | Human-readable result message |
+| `error` | `string \| undefined` | Error details (only on failure) |
+
 ## Editor / Web Types
 
 ### `EditorOpenFilePayload`
@@ -379,5 +407,6 @@ Pilot has no database. Persistent state is stored in JSON files and Markdown fil
 
 ## Changes Log
 
+- 2026-03-10: Added GitSubmodule and TaskReviewResult types
 - 2026-03-06: Added Desktop, MCP, Memory, Editor/Web, Rebase, Conflict types; updated PilotAppSettings with theme; updated persistence summary
 - 2026-02-24: Initial documentation generated

@@ -20,7 +20,9 @@ Complete reference documentation for all services in `electron/services/`. Each 
 | **ExtensionManager** | `extension-manager.ts` | Lists, enables/disables, imports, and removes extensions and skills |
 | **WorkspaceStateService** | `workspace-state.ts` | Persists and restores tab layout + UI state |
 | **SessionMetadata** | `session-metadata.ts` | Persists per-session metadata (isPinned, isArchived) |
+| **SessionToolInjector** | `session-tool-injector.ts` | Isolates private SDK access for runtime tool injection/ejection on live sessions |
 | **TaskManager** | `task-manager.ts` | Kanban-style task board with dependencies, epics, and agent integration |
+| **TaskReviewService** | `task-review-service.ts` | Spawns `td approve`/`td reject` in subprocess for task review |
 | **SubagentManager** | `subagent-manager.ts` | Parallel subagent orchestration with file conflict detection |
 | **CompanionServer** | `companion-server.ts` | HTTPS + WebSocket server for remote companion apps |
 | **CompanionAuth** | `companion-auth.ts` | PIN/QR pairing and session token management for companions |
@@ -757,6 +759,59 @@ interface Dependency {
 
 ---
 
+## Tool Injection
+
+### SessionToolInjector
+
+**File:** `electron/services/session-tool-injector.ts`
+
+**Responsibility:**  
+Encapsulates private SDK field access for adding and removing tools from live `AgentSession` instances at runtime. The Pi SDK does not expose a public API for this, so this module isolates the private field mutation (`_customTools`, `_refreshToolRegistry()`) with runtime guards that detect SDK API changes.
+
+Verified working with `@mariozechner/pi-coding-agent` 0.55.x – 0.57.x.
+
+**Exported Functions:**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `injectTools` | `(session: AgentSession, tools: ToolDefinition[]) => ToolInjectResult \| ToolInjectionError` | Add tools to a live session. Duplicates (by name) are silently skipped. Rebuilds the tool registry after adding. |
+| `ejectTools` | `(session: AgentSession, filter: (toolName: string) => boolean) => ToolEjectResult \| ToolInjectionError` | Remove tools matching a name filter. Rebuilds the tool registry after removal. |
+| `hasTools` | `(session: AgentSession, filter: (toolName: string) => boolean) => boolean` | Check if any tools matching the filter exist. Falls back to public API if SDK internals are unavailable. |
+| `validateSessionInternals` | `(session: AgentSession) => ValidationResult` | Verify the session exposes the expected private fields. Returns typed internals or an actionable error message. |
+
+**Result Types:**
+
+```typescript
+interface ToolInjectResult { ok: true; added: number; }
+interface ToolEjectResult { ok: true; removed: number; }
+interface ToolInjectionError { ok: false; message: string; }
+```
+
+**Used by:** `PilotSessionManager` for toggling desktop tools on live sessions without recreating the session.
+
+---
+
+### TaskReviewService
+
+**File:** `electron/services/task-review-service.ts`
+
+**Responsibility:**  
+Runs `td approve` / `td reject` commands in a subprocess. The td CLI requires that the approving session differs from the implementing session — spawning td as a child process automatically gets a fresh session ID, satisfying this constraint.
+
+**Public Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `approve` | `(projectPath: string, taskId: string) => Promise<TaskReviewResult>` | Approve a task in review status. Spawns `td approve <taskId>`. |
+| `reject` | `(projectPath: string, taskId: string, reason?: string) => Promise<TaskReviewResult>` | Reject a task, sending it back to `in_progress`. Spawns `td reject <taskId> [--reason <reason>]`. |
+
+**Notes:**
+- Caches the `td` binary path after first lookup (uses `which`/`where` per platform)
+- Returns `{ success: false, message: 'td CLI not found on PATH' }` if td is not installed
+- 15-second timeout on subprocess execution
+
+---
+
 ## Subagent Orchestration
 
 ### SubagentManager
@@ -1350,8 +1405,13 @@ ipcMain.handle(IPC.SESSION_CREATE, async (event, tabId, projectPath) => {
 - **SDK Documentation:** [Pi Coding Agent README](https://github.com/mariozechner/pi-coding-agent)
 - **AGENTS.md:** Project orientation for AI coding agents
 - **PRD.md:** Full product requirements and architecture
-- **code-review.md:** Known issues, bugs, and technical debt
 
 ---
 
-*Last Updated: February 23, 2026*
+*Last Updated: March 10, 2026*
+
+---
+
+## Changes Log
+
+- 2026-03-10: Added SessionToolInjector and TaskReviewService sections

@@ -1,6 +1,6 @@
 # Glossary
 
-> Last updated: 2026-03-06
+> Last updated: 2026-03-10
 
 Domain-specific and project-specific terms used throughout the Pilot codebase.
 
@@ -9,6 +9,7 @@ Domain-specific and project-specific terms used throughout the Pilot codebase.
 | **Tab** | A persistent UI unit representing one agent session, web view, or desktop display. Multiple tabs can be open simultaneously. Each tab has a unique `tabId` string. | `tab-store.ts`, `shared/types.ts` |
 | **Session** | An AI conversation managed by the Pi SDK. Stored as a `.jsonl` file. Can be continued, forked, archived, or pinned. | `pi-session-manager.ts`, `session-store.ts` |
 | **Session Path** | The absolute path to a session's `.jsonl` file, typically inside `<PILOT_DIR>/sessions/`. Used as the session's unique identifier at the Pilot layer. | `shared/types.ts`, `session-metadata.ts` |
+| **Session Tool Injector** | A module that isolates private SDK field access (`_customTools`, `_refreshToolRegistry()`) for adding/removing tools on live `AgentSession` instances. Includes runtime guards that detect SDK API changes. | `session-tool-injector.ts`, `pi-session-manager.ts` |
 | **Tab ID** | A UUID string assigned to each tab at creation time. Used to route IPC messages and SDK calls to the correct session. | All IPC channels that accept `tabId` |
 | **StagedDiff** | An in-memory pending file change produced when the agent wants to write to disk. Shown to the user for review before anything is written. | `staged-diffs.ts`, `sandbox-store.ts` |
 | **Project Jail** | The security constraint that prevents the agent from writing files outside the open project's root directory. Enforced by `SandboxedTools`. | `sandboxed-tools.ts`, `.pilot/settings.json` |
@@ -41,11 +42,13 @@ Domain-specific and project-specific terms used throughout the Pilot codebase.
 | **Pi SDK** | `@mariozechner/pi-coding-agent` — the AI agent runtime that Pilot wraps. Provides `AgentSession`, tools, streaming, auth, and model management. | `pi-session-manager.ts` |
 | **Interactive Rebase** | Git's interactive rebase feature exposed in Pilot's UI. Users can pick, reword, squash, fixup, edit, or drop commits. | `git-service.ts`, `git-store.ts` |
 | **Conflict Resolution** | The flow for resolving git merge/rebase conflicts. Supports manual resolution and AI-assisted resolution via the agent. | `git-service.ts`, `git-store.ts` |
+| **Task Review** | The approve/reject flow for tasks in `review` status. Spawns `td approve`/`td reject` in a subprocess (separate session ID, satisfying td's constraint that the reviewer differs from the implementer). | `task-review-service.ts`, `electron/ipc/tasks.ts` |
 | **Theme** | App colour scheme (`dark`, `light`, `system`). Stored in `PilotAppSettings.theme` and applied via `useTheme` hook. | `app-settings-store.ts`, `useTheme.ts` |
 | **Editor Tools** | Agent tools (`pilot_show_file`, `pilot_open_url`, `pilot_web`) that control the Pilot GUI — opening files in the editor, URLs in the browser, or web pages in tabs. | `editor-tools.ts` |
 | **Web Tab** | A tab that displays a web page in an iframe. Created by the `pilot_web` agent tool or by user action. | `tab-store.ts`, `src/components/web/` |
 | **Blame** | Git blame — line-by-line annotation showing which commit last changed each line of a file. | `git-service.ts`, `git-store.ts` |
 | **Stash** | A git stash entry. Pilot can list and apply stashes via `GIT_STASH_LIST` / `GIT_STASH_APPLY` IPC. | `git-service.ts` |
+| **Git Submodule** | A git submodule registered in `.gitmodules`. Pilot can list, init, deinit, update, and sync submodules from the git panel. Represented by the `GitSubmodule` type. | `git-service.ts`, `git-store.ts`, `GitSubmodules.tsx` |
 | **hiddenPaths** | Gitignore-syntax glob patterns stored in `app-settings.json` that control which files are hidden from the Pilot file tree. | `app-settings.ts`, `electron/ipc/project.ts` |
 | **Auto-accept** | A per-tool setting in the sandbox store that automatically accepts diffs from specific tools without user review. | `sandbox-store.ts` |
 | **Context Window** | The maximum number of tokens a model can process in one call. Tracked via `ContextUsage` and shown in the UI. | `shared/types.ts`, `chat-store.ts` |
@@ -53,5 +56,6 @@ Domain-specific and project-specific terms used throughout the Pilot codebase.
 
 ## Changes Log
 
+- 2026-03-10: Added Git Submodule, Session Tool Injector, Task Review terms
 - 2026-03-06: Added Desktop, MCP, Memory Tools, Editor Tools, Web Tab, Interactive Rebase, Conflict Resolution, Theme, broadcastToRenderer terms
 - 2026-02-24: Initial documentation generated

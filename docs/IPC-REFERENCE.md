@@ -1,5 +1,7 @@
 # IPC Channel Reference
 
+**Last updated:** 2026-03-10
+
 Complete reference for all inter-process communication channels in PiLot.
 
 > **Config directory** is platform-dependent: `~/.config/pilot/` (macOS/Linux), `%APPDATA%\pilot\` (Windows). Paths below use `<PILOT_DIR>` as shorthand.
@@ -272,6 +274,11 @@ Git operations via `simple-git`. One `GitService` instance per active project.
 | `GIT_BLAME` | renderer→main | `filePath: string` | `BlameLine[]` |
 | `GIT_STASH_LIST` | renderer→main | — | `GitStash[]` |
 | `GIT_STASH_APPLY` | renderer→main | `stashId: string` | `void` |
+| `GIT_SUBMODULE_LIST` | renderer→main | `projectPath: string` | `GitSubmodule[]` |
+| `GIT_SUBMODULE_INIT` | renderer→main | `projectPath: string, subPath?: string` | `void` |
+| `GIT_SUBMODULE_DEINIT` | renderer→main | `projectPath: string, subPath: string, force?: boolean` | `void` |
+| `GIT_SUBMODULE_UPDATE` | renderer→main | `projectPath: string, subPath?: string, options?: { recursive?: boolean; init?: boolean }` | `void` |
+| `GIT_SUBMODULE_SYNC` | renderer→main | `projectPath: string, subPath?: string` | `void` |
 
 **`GitStatus` type:**
 
@@ -316,6 +323,28 @@ Git operations via `simple-git`. One `GitService` instance per active project.
   parents: string[];
   refs: string[];
 }
+```
+
+**`GitSubmodule` type:**
+
+```typescript
+{
+  name: string;
+  path: string;
+  url: string;
+  branch: string | null;
+  expectedCommit: string;
+  currentCommit: string | null;
+  status: SubmoduleStatusCode;
+  dirty: boolean;
+  statusLabel: string;
+}
+```
+
+**`SubmoduleStatusCode` type:**
+
+```typescript
+type SubmoduleStatusCode = 'initialized' | 'uninitialized' | 'modified' | 'conflict';
 ```
 
 ---
@@ -407,6 +436,8 @@ Task management integration (via `td` CLI).
 | `TASKS_EPIC_PROGRESS` | renderer→main | `projectPath: string, epicId: string` | `EpicProgress` |
 | `TASKS_DEPENDENCIES` | renderer→main | `projectPath: string, taskId: string` | `Dependencies` |
 | `TASKS_SET_ENABLED` | renderer→main | `enabled: boolean` | `void` |
+| `TASKS_APPROVE` | renderer→main | `projectPath: string, taskId: string` | `TaskReviewResult` |
+| `TASKS_REJECT` | renderer→main | `projectPath: string, taskId: string, reason?: string` | `TaskReviewResult` |
 | `TASKS_CHANGED` | main→renderer | `{ projectPath: string }` | — | Push event |
 | `TASKS_SHOW_PANEL` | main→renderer | — | — | Push event |
 | `TASKS_SHOW_CREATE` | main→renderer | — | — | Push event |
@@ -436,6 +467,16 @@ Task management integration (via `td` CLI).
   tags: string[];
   dependencies: string[];
   epic?: string;
+}
+```
+
+**`TaskReviewResult` type:**
+
+```typescript
+{
+  success: boolean;
+  message: string;
+  error?: string;
 }
 ```
 
@@ -765,6 +806,7 @@ OS integration (reveal in Finder, open in terminal/editor, detect apps).
 | `SHELL_OPEN_IN_EDITOR` | renderer→main | `path: string, line?: number` | `void` |
 | `SHELL_DETECT_EDITORS` | renderer→main | — | `DetectedEditor[]` |
 | `SHELL_DETECT_TERMINALS` | renderer→main | — | `DetectedTerminal[]` |
+| `SHELL_CONFIRM_DIALOG` | renderer→main | `options: { title?: string; message: string; detail?: string; confirmLabel?: string; cancelLabel?: string }` | `boolean` |
 
 **`DetectedEditor` type:**
 
@@ -888,7 +930,11 @@ mainWindow?.webContents.send(IPC.MY_EVENT, payload);
 
 - [AGENTS.md](../AGENTS.md) — Project orientation for AI agents
 - [PRD.md](PRD.md) — Full product requirements
-- [memory.md](memory.md) — Memory system architecture
-- [code-review.md](code-review.md) — Known bugs and issues
-- [electron.md](electron.md) — Electron 40 API reference
+- [MEMORY.md](MEMORY.md) — Memory system architecture
+
+---
+
+## Changes Log
+
+- 2026-03-10: Added Git Submodule channels, Shell Confirm Dialog, Task Review channels
 

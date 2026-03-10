@@ -1,6 +1,6 @@
 # Pilot
 
-> Last updated: 2026-03-06
+> Last updated: 2026-03-10
 
 Pilot is an **Electron 40 + React 19 + TypeScript** desktop application that wraps the `@mariozechner/pi-coding-agent` SDK in a full GUI shell. Users chat with an AI coding agent, review file diffs before they touch disk, manage git (including interactive rebase and AI-assisted conflict resolution), run dev commands, control a Docker-based virtual desktop, connect MCP servers for external tools, and access the session remotely via a companion mobile/web client — all from one keyboard-driven app.
 
@@ -8,7 +8,7 @@ Pilot is an **Electron 40 + React 19 + TypeScript** desktop application that wra
 
 | Layer | Technology |
 |-------|------------|
-| Desktop Framework | Electron 40 |
+| Desktop Framework | Electron 40.8 |
 | UI Framework | React 19 |
 | Language | TypeScript 5.x (strict mode) |
 | Build System | Vite 7 + electron-vite 5 |
@@ -64,5 +64,6 @@ Pilot is a **desktop monolith** that strictly follows Electron's three-process m
 
 ## Changes Log
 
+- 2026-03-10: Updated Electron version to 40.8
 - 2026-03-06: Updated for Desktop, MCP, interactive rebase, memory tools, editor tools, web tabs, theme support
 - 2026-02-24: Initial documentation generated

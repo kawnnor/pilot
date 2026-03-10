@@ -2,6 +2,24 @@
 
 All notable changes to Pilot are documented here, grouped by date.
 
+## 2026-03-10
+
+### Added
+- **Git submodule support** — list, init, deinit, update, and sync submodules from the git panel (#16)
+- **Task review approval** — approve/reject tasks in review status from the kanban UI; runs `td approve`/`td reject` in a subprocess (#15)
+- **Shell confirm dialog** — native confirmation dialog for destructive actions (used by submodule deinit)
+
+### Changed
+- **SessionToolInjector** — extracted private SDK access for runtime tool injection into a dedicated module with runtime guards (#14)
+- **Kanban board** — hide columns excluded by status filter (#13)
+- **Pi SDK** updated from 0.55.3 → 0.57.0
+- **Electron** updated from 40.6.1 → 40.8.0
+
+### Documentation
+- Updated all docs for new features (IPC reference, services, data model, glossary, stores, structure, architecture)
+- Standardised doc filenames to UPPERCASE
+- Removed obsolete MVC-MIGRATION.md and code review docs
+
 ## 2026-03-06
 
 ### Added

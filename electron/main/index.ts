@@ -171,9 +171,12 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    frame: false,
-    ...(isMac ? { titleBarStyle: 'hiddenInset' as const } : {}),
+    ...(isMac ? {
+      frame: false,
+      titleBarStyle: 'hiddenInset' as const
+    } : {}),
     ...(isWin ? {
+      titleBarStyle: 'hidden' as const,
       titleBarOverlay: {
         color: windowBg,
         symbolColor: windowFg,
@@ -286,7 +289,7 @@ app.whenReady().then(async () => {
   mcpManager = new McpManager();
   sessionManager.mcpManager = mcpManager;
   terminalService = mainWindow ? new TerminalService(mainWindow) : null;
-  
+
   // Register IPC handlers
   registerAgentIpc(sessionManager);
   registerModelIpc(sessionManager);

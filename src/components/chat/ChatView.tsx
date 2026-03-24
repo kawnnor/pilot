@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useChatStore, type ChatMessage } from '../../stores/chat-store';
 import { useTabStore } from '../../stores/tab-store';
 import { useAuthStore } from '../../stores/auth-store';
@@ -17,7 +18,7 @@ export default function ChatView() {
   const messagesByTab = useChatStore(s => s.messagesByTab);
   const messages = useMemo(() => (activeTabId ? messagesByTab[activeTabId] ?? [] : []), [messagesByTab, activeTabId]);
   const isStreaming = useChatStore(s => activeTabId ? s.streamingByTab[activeTabId] : false);
-  const suggestions = useChatStore(s => activeTabId ? s.suggestionsByTab[activeTabId] ?? [] : []);
+  const suggestions = useChatStore(useShallow(s => activeTabId ? s.suggestionsByTab[activeTabId] ?? [] : []));
   const { sendMessage, steerAgent, followUpAgent, abortAgent, cycleModel, selectModel, cycleThinking } = useAgentSession();
   const { hasAnyAuth, loadStatus: loadAuthStatus } = useAuthStore();
   const { onboardingComplete, load: loadAppSettings } = useAppSettingsStore();
@@ -30,7 +31,7 @@ export default function ChatView() {
   }, [loadAuthStatus, loadAppSettings]);
 
   const showWelcome = !onboardingComplete;
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);

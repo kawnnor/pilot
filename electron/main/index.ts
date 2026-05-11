@@ -30,9 +30,13 @@ import { registerDesktopIpc } from '../ipc/desktop';
 import { registerThemeIpc } from '../ipc/theme';
 import { DesktopService } from '../services/desktop-service';
 import { ThemeService } from '../services/theme-service';
+import { registerPluginsIpc } from '../ipc/plugins';
 import { OllamaService } from '../services/ollama-service';
 import { registerOllamaIpc } from '../ipc/ollama';
 import { McpManager } from '../services/mcp-manager';
+import { pluginBridge, PluginBridge } from '../services/plugin-bridge';
+import { PluginInstaller } from '../services/plugin-installer';
+import { pluginDevMode } from '../services/plugin-dev-mode';
 import { PromptLibrary } from '../services/prompt-library';
 import { CommandRegistry } from '../services/command-registry';
 import { CompanionAuth } from '../services/companion-auth';
@@ -43,6 +47,7 @@ import { companionBridge, syncAllHandlers } from '../services/companion-ipc-brid
 import { ensureTLSCert } from '../services/companion-tls';
 import { PILOT_APP_DIR } from '../services/pilot-paths';
 import { loadAppSettings } from '../services/app-settings';
+import { WorkspaceStateService } from '../services/workspace-state';
 import { IPC } from '../../shared/ipc';
 
 let mainWindow: BrowserWindow | null = null;
@@ -59,7 +64,9 @@ let mcpManager: McpManager | null = null;
 let desktopService: DesktopService | null = null;
 let themeService: ThemeService | null = null;
 let ollamaService: OllamaService | null = null;
+let pluginInstaller: PluginInstaller | null = null;
 let developerModeEnabled = false;
+const service = new WorkspaceStateService();
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -165,7 +172,7 @@ function buildApplicationMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function createWindow() {
+async function createWindow() {
   // Read persisted theme to set correct initial window chrome (avoid flash)
   const settings = loadAppSettings();
   let windowBg: string;
@@ -226,7 +233,16 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
-  // Show window when ready to prevent flash
+  // Restore window bounds from workspace state BEFORE showing window
+  const workspace = await service.load();
+  if (workspace?.windowBounds && !workspace.windowMaximized) {
+    mainWindow.setBounds(workspace.windowBounds);
+  }
+  if (workspace?.windowMaximized) {
+    mainWindow.maximize();
+  }
+
+  // Show window when ready
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show();
     // Open DevTools in dev mode for debugging
@@ -234,6 +250,28 @@ function createWindow() {
       mainWindow?.webContents.openDevTools({ mode: 'detach' });
     }
   });
+
+  // Save window bounds on resize/position changes
+  let saveWindowBoundsTimeout: NodeJS.Timeout | null = null;
+  const saveWindowBounds = () => {
+    if (saveWindowBoundsTimeout) clearTimeout(saveWindowBoundsTimeout);
+    saveWindowBoundsTimeout = setTimeout(async () => {
+      if (!mainWindow) return;
+      const bounds = mainWindow.getBounds();
+      const isMaximized = mainWindow.isMaximized();
+      const existing = await service.load() ?? {};
+      await service.save({
+        ...existing,
+        windowBounds: bounds,
+        windowMaximized: isMaximized,
+      });
+    }, 500);
+  };
+
+  mainWindow.on('resize', saveWindowBounds);
+  mainWindow.on('move', saveWindowBounds);
+  mainWindow.on('maximize', saveWindowBounds);
+  mainWindow.on('unmaximize', saveWindowBounds);
 
   // Send maximize state changes to renderer
   mainWindow.on('maximize', () => {
@@ -251,6 +289,13 @@ function createWindow() {
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL, isMainFrame) => {
     if (isMainFrame) return; // Only care about sub-frames (iframes)
     mainWindow?.webContents.send(IPC.WEB_TAB_LOAD_FAILED, { url: validatedURL, errorCode });
+  });
+
+  // Forward found-in-page results from webContents to renderer for WebView find bar
+  mainWindow.webContents.on('found-in-page', (_event, result) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC.WEBVIEW_FOUND_IN_PAGE, result);
+    }
   });
 
   // Build application menu
@@ -312,6 +357,9 @@ app.whenReady().then(async () => {
   mcpManager = new McpManager();
   sessionManager.mcpManager = mcpManager;
   terminalService = mainWindow ? new TerminalService(mainWindow) : null;
+
+  // Wire plugin system to session manager
+  pluginBridge.setSessionManager(sessionManager);
 
   // Initialize Ollama service (registers models in the ModelRegistry if enabled)
   ollamaService = new OllamaService();
@@ -492,6 +540,29 @@ app.whenReady().then(async () => {
   registerPromptsIpc(promptLibrary);
   setPromptLibraryRef(promptLibrary);
 
+  // Initialize plugin system
+  pluginInstaller = new PluginInstaller();
+  registerPluginsIpc(pluginBridge, pluginInstaller);
+
+  // Check for --plugin-debug flag
+  const debugPlugins = process.argv.includes('--plugin-debug');
+
+  // Start the Extension Host
+  pluginBridge.start(debugPlugins);
+
+  // Activate installed plugins that are enabled
+  const installedPlugins = pluginInstaller.listPlugins();
+  pluginBridge.setInstalledPlugins(installedPlugins);
+  for (const plugin of installedPlugins) {
+    if (plugin.enabled) {
+      try {
+        pluginBridge.registerPlugin(plugin);
+      } catch (err) {
+        console.error(`Failed to activate plugin ${plugin.id}:`, err);
+      }
+    }
+  }
+
   // Window control IPC handlers
   ipcMain.handle('window:minimize', () => {
     mainWindow?.minimize();
@@ -540,6 +611,16 @@ app.whenReady().then(async () => {
   });
 
   // Sync all IPC handlers to the companion bridge registry.
+  ipcMain.handle(IPC.WEBVIEW_FIND_IN_PAGE, (_event, query: string, options: { forward?: boolean; findNext?: boolean; matchCase?: boolean } = {}) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.findInPage(query, options);
+  });
+
+  ipcMain.handle(IPC.WEBVIEW_STOP_FIND_IN_PAGE, (_event, action: 'clearSelection' | 'keepSelection' | 'activateSelection' = 'clearSelection') => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.stopFindInPage(action);
+  });
+
   // This must happen AFTER all ipcMain.handle() registrations above.
   syncAllHandlers();
 
@@ -625,5 +706,7 @@ app.on('will-quit', () => {
   companionDiscovery?.stop();
   companionRemote?.dispose();
   companionBridge.shutdown();
+  pluginBridge.stop();
+  pluginDevMode.stopAll();
   shutdownLogger();
 });

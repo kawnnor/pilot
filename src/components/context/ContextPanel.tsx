@@ -6,6 +6,9 @@ import { useSandboxStore } from '../../stores/sandbox-store';
 import { useAppSettingsStore } from '../../stores/app-settings-store';
 import { useTabStore } from '../../stores/tab-store';
 import { useSubagentStore } from '../../stores/subagent-store';
+import { usePluginStore } from '../../stores/plugin-store';
+import { Icon } from '../shared/Icon';
+import type { IconName } from '../../shared/types';
 import FileTree from './FileTree';
 import { StagedDiffQueue } from '../sandbox/StagedDiffQueue';
 import GitPanel from '../git/GitPanel';
@@ -14,9 +17,12 @@ import DesktopPanel from '../desktop/DesktopPanel';
 
 export default function ContextPanel() {
   const { contextPanelVisible, contextPanelWidth, contextPanelTab, setContextPanelTab, toggleContextPanel } = useUIStore();
-  const { projectPath, openProjectDialog } = useProjectStore();
+  const { projectPath: fallbackProjectPath, openProjectDialog } = useProjectStore();
   const activeTabId = useTabStore((s) => s.activeTabId);
+  const tabs = useTabStore((s) => s.tabs);
   const getPendingDiffs = useSandboxStore((s) => s.getPendingDiffs);
+  const { activeViews: pluginViews, getViewChildren } = usePluginStore();
+  const pluginPanelViews = pluginViews.filter(v => v.location === 'panel');
 
   const pendingCount = activeTabId ? getPendingDiffs(activeTabId).length : 0;
   const subagentsByTab = useSubagentStore((s) => s.subagentsByTab);
@@ -28,11 +34,13 @@ export default function ContextPanel() {
 
   // Desktop tab: visible when the global setting is on
   const desktopEnabled = useAppSettingsStore((s) => s.desktopEnabled);
+  const activeTabProjectPath = tabs.find((t) => t.id === activeTabId)?.projectPath ?? null;
+  const projectPath = activeTabProjectPath ?? fallbackProjectPath;
 
-  // If the active tab was 'tasks', fall back to 'files'
+  // If the active tab was 'tasks', fall back to 'changes'
   // Also fall back if desktop tab is selected but desktop is disabled
-  let effectiveTab = contextPanelTab === 'tasks' ? 'files' : contextPanelTab;
-  if (effectiveTab === 'desktop' && !desktopEnabled) effectiveTab = 'files';
+  let effectiveTab = contextPanelTab === 'tasks' ? 'changes' : contextPanelTab;
+  if (effectiveTab === 'desktop' && !desktopEnabled) effectiveTab = 'changes';
 
   const handleTabClick = (tab: ContextPanelTab) => {
     if (!contextPanelVisible) toggleContextPanel();
@@ -42,7 +50,20 @@ export default function ContextPanel() {
   if (!contextPanelVisible) {
     // Collapsed: show only a thin activity bar to re-expand
     return (
-      <div className="flex flex-col items-center w-10 flex-shrink-0 bg-bg-surface border-l border-border py-2 gap-1">
+      <div className="flex flex-col items-center w-10 shrink-0 bg-bg-surface border-l border-border py-2 gap-1">
+        {/* Changes */}
+        <Tooltip content="Changes" position="left">
+          <button
+            className="p-2 rounded-md transition-colors relative hover:bg-bg-elevated text-text-secondary"
+            onClick={() => handleTabClick('changes')}
+          >
+            <FileDiff className="w-4 h-4" />
+            {pendingCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-warning rounded-full" />
+            )}
+          </button>
+        </Tooltip>
+
         {/* Files */}
         <Tooltip content="Files" position="left">
           <button
@@ -60,19 +81,6 @@ export default function ContextPanel() {
             onClick={() => handleTabClick('git')}
           >
             <GitBranch className="w-4 h-4" />
-          </button>
-        </Tooltip>
-
-        {/* Changes */}
-        <Tooltip content="Changes" position="left">
-          <button
-            className="p-2 rounded-md transition-colors relative hover:bg-bg-elevated text-text-secondary"
-            onClick={() => handleTabClick('changes')}
-          >
-            <FileDiff className="w-4 h-4" />
-            {pendingCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-warning rounded-full" />
-            )}
           </button>
         </Tooltip>
 
@@ -101,6 +109,18 @@ export default function ContextPanel() {
           </Tooltip>
         )}
 
+        {/* Plugin panel views */}
+        {pluginPanelViews.map(view => (
+          <Tooltip key={view.viewId} content={view.title} position="left">
+            <button
+              className="p-2 rounded-md transition-colors hover:bg-bg-elevated text-text-secondary"
+              onClick={() => handleTabClick(view.viewId)}
+            >
+              <Icon name={(view.icon || 'Puzzle') as IconName} className="w-4 h-4" />
+            </button>
+          </Tooltip>
+        ))}
+
         {/* Spacer */}
         <div className="flex-1" />
 
@@ -120,31 +140,12 @@ export default function ContextPanel() {
   // Expanded: show the full panel with tabs, content, and collapse button
   return (
     <div
-      className="bg-bg-surface border-l border-border flex flex-col"
+      className="bg-bg-surface border-l border-border flex flex-col h-full"
       style={{ width: `${contextPanelWidth}px` }}
     >
       {/* Tab Switcher Header */}
       <div className="h-9 bg-bg-elevated border-b border-border flex items-center px-2 gap-1">
-        <button
-          onClick={() => setContextPanelTab('files')}
-          className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm ${
-            effectiveTab === 'files'
-              ? 'text-accent bg-bg-base border-b-2 border-accent'
-              : 'text-text-secondary hover:text-text-primary hover:bg-bg-base/50'
-          }`}
-        >
-          Files
-        </button>
-        <button
-          onClick={() => setContextPanelTab('git')}
-          className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm ${
-            effectiveTab === 'git'
-              ? 'text-accent bg-bg-base border-b-2 border-accent'
-              : 'text-text-secondary hover:text-text-primary hover:bg-bg-base/50'
-          }`}
-        >
-          Git
-        </button>
+        {/* Changes */}
         <button
           onClick={() => setContextPanelTab('changes')}
           className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm relative ${
@@ -160,6 +161,32 @@ export default function ContextPanel() {
             </span>
           )}
         </button>
+
+        {/* Files */}
+        <button
+          onClick={() => setContextPanelTab('files')}
+          className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm ${
+            effectiveTab === 'files'
+              ? 'text-accent bg-bg-base border-b-2 border-accent'
+              : 'text-text-secondary hover:text-text-primary hover:bg-bg-base/50'
+          }`}
+        >
+          Files
+        </button>
+
+        {/* Git */}
+        <button
+          onClick={() => setContextPanelTab('git')}
+          className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm ${
+            effectiveTab === 'git'
+              ? 'text-accent bg-bg-base border-b-2 border-accent'
+              : 'text-text-secondary hover:text-text-primary hover:bg-bg-base/50'
+          }`}
+        >
+          Git
+        </button>
+
+        {/* Agents */}
         <button
           onClick={() => setContextPanelTab('agents')}
           className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm relative ${
@@ -187,11 +214,28 @@ export default function ContextPanel() {
             Desktop
           </button>
         )}
+
+        {/* Plugin panel tabs */}
+        {pluginPanelViews.map(view => (
+          <button
+            key={view.viewId}
+            onClick={() => setContextPanelTab(view.viewId)}
+            className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-sm ${
+              effectiveTab === view.viewId
+                ? 'text-accent bg-bg-base border-b-2 border-accent'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-base/50'
+            }`}
+          >
+            {view.title}
+          </button>
+        ))}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {effectiveTab === 'files' ? (
+        {effectiveTab === 'changes' ? (
+          <StagedDiffQueue />
+        ) : effectiveTab === 'files' ? (
           !projectPath ? (
             <div className="flex flex-col items-center justify-center h-full p-4 gap-4">
               <FolderOpen className="w-12 h-12 text-text-secondary" />
@@ -206,7 +250,7 @@ export default function ContextPanel() {
               </button>
             </div>
           ) : (
-            <FileTree />
+            <FileTree projectPath={projectPath} />
           )
         ) : effectiveTab === 'git' ? (
           <GitPanel />
@@ -214,6 +258,8 @@ export default function ContextPanel() {
           <AgentsPanel />
         ) : effectiveTab === 'desktop' ? (
           <DesktopPanel />
+        ) : pluginPanelViews.some(v => v.viewId === effectiveTab) ? (
+          <PluginPanelView viewId={effectiveTab} getChildren={getViewChildren} />
         ) : (
           <StagedDiffQueue />
         )}
@@ -230,6 +276,22 @@ export default function ContextPanel() {
           </button>
         </Tooltip>
       </div>
+    </div>
+  );
+}
+
+function PluginPanelView({
+  viewId,
+  getChildren,
+}: {
+  viewId: string;
+  getChildren: (viewId: string, elementId: string | null) => Promise<unknown[]>;
+}) {
+  // Reuse the tree view rendering logic from PluginSidebarViews
+  // For now, just show a placeholder
+  return (
+    <div className="flex-1 overflow-y-auto p-4 text-text-secondary text-sm">
+      Plugin panel view: {viewId}
     </div>
   );
 }
